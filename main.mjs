@@ -1,9 +1,10 @@
 // main.mjs
-import { Client, GatewayIntentBits, Collection } from 'discord.js'; // Collectionを追加
+import { Client, GatewayIntentBits, Collection, ActivityType } from 'discord.js';
 import dotenv from 'dotenv';
 import express from 'express';
 // 作成したコマンドファイルを読み込み
-import * as pingCommand from './commands/ping.mjs';
+import * as illuminationCommand from './commands/illumination.mjs';
+import * as jankenCommand from './commands/janken.mjs';
 import { handleMessage } from './handlers/chatHandler.mjs';
 
 dotenv.config();
@@ -18,15 +19,25 @@ const client = new Client({
 
 // コマンド登録処理
 client.commands = new Collection();
-client.commands.set(pingCommand.data.name, pingCommand);
+client.commands.set(illuminationCommand.data.name, illuminationCommand);
+client.commands.set(jankenCommand.data.name, jankenCommand);
 
+// Botが起動したときの処理
 client.once('ready', () => {
     console.log(`🎉 ${client.user.tag} が正常に起動しました！`);
+    client.user.setActivity('みんなのことがだいちゅき❤', { 
+        type: ActivityType.Custom, 
+        state: 'みんなのことがだいちゅき❤'  // ← ここに表示したい文字を入れるのがコツです！
+    });
     
-    // ★ここでコマンドをDiscordに登録します（重要）
-    const commands = [pingCommand.data.toJSON()];
+    // コマンドをDiscordに登録
+    const commands = [
+        illuminationCommand.data.toJSON(),
+        jankenCommand.data.toJSON()
+    ];
     client.application.commands.set(commands)
-        .then(() => console.log('✅ スラッシュコマンド (/ping) を登録しました！'))
+        .then(() => console.log('✅ スラッシュコマンド (/illumination) を登録しました！'))
+        .then(() => console.log('✅ じゃんけんコマンド (/janken) を登録しました！'))
         .catch(console.error);
 });
 
@@ -39,20 +50,32 @@ client.on('interactionCreate', async interaction => {
     const command = client.commands.get(interaction.commandName);
 
     // 知らないコマンドなら無視
-    if (!command) return;
+    if (!command) {
+        console.error(`${interaction.commandName} というコマンドは見つかりませんでした。`);
+        return;
+    }
 
     try {
         // コマンドを実行！
         await command.execute(interaction);
     } catch (error) {
         console.error(error);
-        await interaction.reply({ content: '❌ エラーが発生しました', ephemeral: true });
+
+        // ▼▼▼ ここが重要！エラー処理の強化 ▼▼▼
+        // もしすでに「考え中...」や「返信済み」の状態なら、replyではなくfollowUpを使う
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp({ content: '❌ エラーが発生しました', ephemeral: true }).catch(e => console.error(e));
+        } else {
+            // まだ何も返信していないなら reply を使う
+            await interaction.reply({ content: '❌ エラーが発生しました', ephemeral: true }).catch(e => console.error(e));
+        }
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
     }
 });
 
 // メッセージ受信時の処理 
 client.on('messageCreate', (message) => {
-    // chatHandler.js に処理を丸投げする
+    // chatHandler.js で処理
     handleMessage(message);
 });
 
