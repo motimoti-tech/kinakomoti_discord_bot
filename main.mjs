@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 // 作成したコマンドファイルを読み込み
 import * as pingCommand from './commands/ping.mjs';
-import { handleMessage } from './handlers/chatHandler.js';
+import { handleMessage } from './handlers/chatHandler.mjs';
 
 dotenv.config();
 
