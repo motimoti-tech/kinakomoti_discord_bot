@@ -4,19 +4,20 @@ import dotenv from 'dotenv';
 import express from 'express';
 // 作成したコマンドファイルを読み込み
 import * as pingCommand from './commands/ping.mjs';
+import { handleMessage } from './handlers/chatHandler.js';
 
 dotenv.config();
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
+        GatewayIntentBits.MessageContent, // メッセージ内容を取得するために必要
+        GatewayIntentBits.GuildMessages, // メッセージの受信に必要
     ],
 });
 
-// コマンドを管理する「箱」を用意
+// コマンド登録処理
 client.commands = new Collection();
-
-// pingコマンドを「箱」に登録
 client.commands.set(pingCommand.data.name, pingCommand);
 
 client.once('ready', () => {
@@ -49,7 +50,13 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// --- 以下、Webサーバー設定（変更なし） ---
+// メッセージ受信時の処理 
+client.on('messageCreate', (message) => {
+    // chatHandler.js に処理を丸投げする
+    handleMessage(message);
+});
+
+// 以下、Webサーバー設定（Render 用)
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -64,6 +71,7 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
     console.log(`🌐 Web サーバーがポート ${port} で起動しました`);
 });
+
 
 // ログイン
 client.login(process.env.DISCORD_TOKEN);
