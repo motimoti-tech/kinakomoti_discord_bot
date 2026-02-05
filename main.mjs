@@ -1,71 +1,58 @@
-// main.mjs - Discord Botのメインプログラム
-
-// 必要なライブラリを読み込み
-import { Client, GatewayIntentBits } from 'discord.js';
+// main.mjs
+import { Client, GatewayIntentBits, Collection } from 'discord.js'; // Collectionを追加
 import dotenv from 'dotenv';
 import express from 'express';
+// 作成したコマンドファイルを読み込み
+import * as pingCommand from './commands/ping.mjs';
 
-// .envファイルから環境変数を読み込み
 dotenv.config();
 
-// Discord Botクライアントを作成
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds,            // サーバー情報取得
-        GatewayIntentBits.GuildMessages,    // メッセージ取得
-        GatewayIntentBits.MessageContent,   // メッセージ内容取得
-        GatewayIntentBits.GuildMembers,     // メンバー情報取得
+        GatewayIntentBits.Guilds,
     ],
 });
 
-// Botが起動完了したときの処理
+// コマンドを管理する「箱」を用意
+client.commands = new Collection();
+
+// pingコマンドを「箱」に登録
+client.commands.set(pingCommand.data.name, pingCommand);
+
 client.once('ready', () => {
     console.log(`🎉 ${client.user.tag} が正常に起動しました！`);
-    console.log(`📊 ${client.guilds.cache.size} つのサーバーに参加中`);
+    
+    // ★ここでコマンドをDiscordに登録します（重要）
+    const commands = [pingCommand.data.toJSON()];
+    client.application.commands.set(commands)
+        .then(() => console.log('✅ スラッシュコマンド (/ping) を登録しました！'))
+        .catch(console.error);
 });
 
-// メッセージが送信されたときの処理
-client.on('messageCreate', (message) => {
-    // Bot自身のメッセージは無視
-    if (message.author.bot) return;
-    
-    // 「ping」メッセージに反応
-    if (message.content.toLowerCase() === 'ping') {
-        message.reply('🏓 pong!');
-        console.log(`📝 ${message.author.tag} が ping コマンドを使用`);
+// スラッシュコマンドが使われたときの処理
+client.on('interactionCreate', async interaction => {
+    // コマンド以外は無視
+    if (!interaction.isChatInputCommand()) return;
+
+    // 実行されたコマンドを探す
+    const command = client.commands.get(interaction.commandName);
+
+    // 知らないコマンドなら無視
+    if (!command) return;
+
+    try {
+        // コマンドを実行！
+        await command.execute(interaction);
+    } catch (error) {
+        console.error(error);
+        await interaction.reply({ content: '❌ エラーが発生しました', ephemeral: true });
     }
 });
 
-// エラーハンドリング
-client.on('error', (error) => {
-    console.error('❌ Discord クライアントエラー:', error);
-});
-
-// プロセス終了時の処理
-process.on('SIGINT', () => {
-    console.log('🛑 Botを終了しています...');
-    client.destroy();
-    process.exit(0);
-});
-
-// Discord にログイン
-if (!process.env.DISCORD_TOKEN) {
-    console.error('❌ DISCORD_TOKEN が .env ファイルに設定されていません！');
-    process.exit(1);
-}
-
-console.log('🔄 Discord に接続中...');
-client.login(process.env.DISCORD_TOKEN)
-    .catch(error => {
-        console.error('❌ ログインに失敗しました:', error);
-        process.exit(1);
-    });
-
-// Express Webサーバーの設定（Render用）
+// --- 以下、Webサーバー設定（変更なし） ---
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ヘルスチェック用エンドポイント
 app.get('/', (req, res) => {
     res.json({
         status: 'Bot is running! 🤖',
@@ -74,7 +61,9 @@ app.get('/', (req, res) => {
     });
 });
 
-// サーバー起動
 app.listen(port, () => {
     console.log(`🌐 Web サーバーがポート ${port} で起動しました`);
 });
+
+// ログイン
+client.login(process.env.DISCORD_TOKEN);
